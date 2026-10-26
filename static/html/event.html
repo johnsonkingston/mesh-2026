@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mesh – Festival für Kunst und Technologie</title>
+<!--
+  Offline-Ersatz fuer die Server-Ansicht /events/<slug>/<lang>?embed=1 (Archiv, 2026-10-26).
+  Markup 1:1 nach dem Template der Live-Seite (event.pug), gerendert aus static/script/archive-data.js.
+-->
+<link rel="stylesheet" type="text/css" href="../styles/main.min.css">
+</head>
+<body class="page event">
+<main></main>
+<div id="back" onclick="historyBack()"><div></div><div></div><div></div></div>
+<script src="../script/archive-data.js"></script>
+<script>
+(function () {
+  var DATA = window.MESH_ARCHIVE || { events: [], venues: [], assets: [] };
+  var ROOT = '../../';                                          // meshfestival.ch/
+  var ASSETS = '../../../env-9468449.appengine.flow.ch/assets/'; // lokaler Asset-Ordner
+  var REMOTE = 'https://env-9468449.appengine.flow.ch/assets/';
+  // Bezeichnungen exakt wie auf der Live-Seite
+  var FORMATS = {
+    ausstellungen: ['Ausstellung', 'Exhibitions'],
+    clubnights:    ['Club Nights', 'Club Nights'],
+    guided_tour:   ['Rundgang', 'Guided Tour'],
+    konferenz:     ['Konferenz', 'Conference'],
+    performances:  ['Performance', 'Performances'],
+    satellite:     ['Satellit', 'Satellite'],
+    screenings:    ['Screening', 'Screenings'],
+    welcoming:     ['Welcome', 'Welcome'],
+    workshop:      ['Workshop', 'Workshop']
+  };
+
+  var params = new URLSearchParams(window.location.search);
+  var slug = params.get('event') || '';
+  var lang = params.get('lang') === 'en' ? 'en' : 'de';
+  var li = lang === 'en' ? 1 : 0;
+  document.documentElement.lang = lang;
+
+  // Asset-Index: lokale Dateien bevorzugen, sonst CMS-Server
+  var assetSet = {};
+  DATA.assets.forEach(function (n) { assetSet[n] = true; });
+  function enc(n) { return n.replace(/%/g, '%25').replace(/#/g, '%23').replace(/\?/g, '%3F'); }
+  function asset(name, query) {           // name = uuid oder uuid.ext, query = 'key=content' etc.
+    var uuid = name.slice(0, 36);
+    var cands = query ? [name + '@' + query, uuid + '@' + query] : [name, uuid];
+    for (var i = 0; i < cands.length; i++) if (assetSet[cands[i]]) return ASSETS + enc(cands[i]);
+    return REMOTE + name + (query ? '?' + query : '');
+  }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  function eventHref(s, l) { return 'event.html?event=' + encodeURIComponent(s) + '&lang=' + (l || lang); }
+
+  // CMS-Richtext so aufbereiten, wie es der Server tut (Bilder -> ?key=content, Links lokal)
+  function prepare(html) {
+    var tpl = document.createElement('template');
+    tpl.innerHTML = html || '';
+    var root = tpl.content;
+    root.querySelectorAll('img[src], video[src], source[src]').forEach(function (el) {
+      var m = el.getAttribute('src').match(/appengine\.flow\.ch\/assets\/([0-9a-f-]{36}(?:\.[a-z0-9]+)?)(?:\?(.*))?$/i);
+      if (!m) return;
+      if (el.tagName === 'IMG') {
+        var q = new URLSearchParams((m[2] || '').replace(/&amp;/g, '&'));
+        if (q.get('width') && q.get('height') && !el.getAttribute('width')) {
+          el.setAttribute('width', q.get('width'));
+          el.setAttribute('height', q.get('height'));
+        }
+        el.setAttribute('src', asset(m[1], 'key=content'));
+      } else {
+        el.setAttribute('src', asset(m[1]));
+      }
+    });
+    root.querySelectorAll('a[href]').forEach(function (a) {
+      var h = a.getAttribute('href').trim();
+      var ev = h.match(/^(?:https?:\/\/(?:www\.)?meshfestival\.ch)?\/?events\/([^\/?#]+)(?:\/(de|en))?\/?$/);
+      if (ev) { a.setAttribute('href', eventHref(ev[1], ev[2])); a.setAttribute('data-event', ev[1]); a.setAttribute('data-lang', ev[2] || lang); return; }
+      var site = h.match(/^(?:https?:\/\/(?:www\.)?meshfestival\.ch)?\/?((?:pages|artists|timetable|ticketshop)(?:\/[^?#]*)?)\/?$/);
+      if (site) {
+        var p = site[1].replace(/\/(de|en)$/, '');
+        a.setAttribute('href', ROOT + p + (p.indexOf('/') > -1 ? '/' + lang + '.html' : '.html'));
+        a.setAttribute('target', '_top');
+      }
+    });
+    var wrap = document.createElement('div');
+    wrap.appendChild(root);
+    return wrap.innerHTML;
+  }
+
+  var ICONS = {
+    muted: '<svg class="iconMuted" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4z" fill="currentColor"></path><path d="M16.5 8.5l6 6M22.5 8.5l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>',
+    unmuted: '<svg class="iconUnmuted" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4z" fill="currentColor"></path><path d="M16 8a5 5 0 010 8M19 5a9 9 0 010 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>',
+    pause: '<svg class="iconPause" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor"></path></svg>',
+    play: '<svg class="iconPlay" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M7 4l13 8-13 8V4z" fill="currentColor"></path></svg>'
+  };
+
+  var main = document.querySelector('main');
+  var e = DATA.events.filter(function (x) { return x.slug === slug; })[0];
+  if (!e) {
+    main.innerHTML = '<h1 class="blurOrganic1-5">' + (li ? 'Event not found' : 'Event nicht gefunden') + '</h1>';
+    return;
+  }
+
+  var tr = (e.translations || []).filter(function (t) { return t.languages_code === lang; })[0] ||
+           (e.translations || [])[0] || {};
+  document.title = 'Mesh – Festival für Kunst und Technologie – ' + (tr.Title || '');
+
+  var fmt = FORMATS[e.Format];
+  var out = '';
+  out += '<h4 class="format">' + esc(fmt ? fmt[li] : (e.Format || '')) + '</h4>';
+  out += '<h4>' + esc(e.Thema || ' ') + '</h4>';
+  out += '<h1 class="blurOrganic1-5">' + esc(e.Artist) + '</h1>';
+  out += '<h3 class="blurOrganic1-5">' + esc(tr.Title) + '</h3>';
+
+  var mi = e.Main_Image;
+  if (mi && mi.id) {
+    var file = mi.filename_disk || mi.id;
+    if (/^video\//.test(mi.type || '')) {
+      out += '<div class="mainimageWrap"><video class="mainimage" id="mainVideo" src="' + asset(file) + '" autoplay muted loop playsinline></video>' +
+        '<button class="unmuteBtn mediaBtn is-muted" id="unmuteBtn" type="button" onclick="toggleMainVideoSound()" aria-label="' + (li ? 'Unmute' : 'Ton aktivieren') + '">' + ICONS.muted + ICONS.unmuted + '</button>' +
+        '<button class="playPauseBtn mediaBtn" id="playPauseBtn" type="button" aria-label="Pause">' + ICONS.pause + ICONS.play + '</button></div>';
+    } else {
+      out += '<picture><source media="min-width:650px" srcset="' + asset(file, 'key=content') + '">' +
+        '<img class="mainimage" src="' + asset(file, 'key=fullscreen') + '" alt="' + esc(mi.title) + '"></picture>';
+    }
+    out += '<div class="mainimageCaption mediaCaption">' + esc(mi.title) + '</div>';
+  }
+
+  var venues = (e.Venues || []).map(function (v) { var x = DATA.venues[v.Venues_id]; return x && x.Name; }).filter(Boolean);
+  out += '<div class="eventHeader"> <div class="eventHeaderColumn"><p></p>' + prepare(tr.Time_frontend) + '<p></p>';
+  venues.forEach(function (name) {
+    out += '<a href="' + ROOT + 'pages/locations/' + lang + '.html" target="_top"><p>' + esc(name) + '</p></a>';
+  });
+  out += '</div></div>';
+  out += '<div class="lead">' + prepare(tr.Lead) + '</div>';
+  out += '<div class="content">' + prepare(tr.Content) + '</div>';
+  main.innerHTML = out;
+})();
+
+// --- ab hier wie im Original-Template (event.pug), fuer file:// angepasst ---
+
+function captionContentImages(scope){
+    (scope || document).querySelectorAll('.content img, .lead img').forEach(function(img){
+        if(img.dataset.captioned) return;
+        img.dataset.captioned = '1';
+        img.loading = 'lazy';
+        var alt = (img.getAttribute('alt') || '').trim();
+        if(!alt) return;
+        var block = img.closest('p') || img.parentElement;
+        var caption = document.createElement('p');
+        caption.className = 'mediaCaption';
+        caption.textContent = alt;
+        block.insertAdjacentElement('afterend', caption);
+    });
+}
+captionContentImages();
+
+function toggleMainVideoSound(){
+    var v = document.getElementById('mainVideo');
+    var b = document.getElementById('unmuteBtn');
+    if(!v) return;
+    v.muted = !v.muted;
+    if(b){
+        b.classList.toggle('is-muted', v.muted);
+        b.setAttribute('aria-label', v.muted ? 'Ton aktivieren' : 'Ton stummschalten');
+    }
+}
+
+(function(){
+    var v = document.getElementById('mainVideo');
+    var b = document.getElementById('playPauseBtn');
+    if(!v || !b) return;
+    function syncPlayPause(){
+        b.classList.toggle('is-paused', v.paused);
+        b.setAttribute('aria-label', v.paused ? 'Abspielen' : 'Pause');
+    }
+    v.addEventListener('play', syncPlayPause);
+    v.addEventListener('pause', syncPlayPause);
+    syncPlayPause();
+    b.addEventListener('click', function(){
+        if(v.paused){ v.play(); } else { v.pause(); }
+    });
+})();
+
+// Kommunikation mit dem Overlay der umgebenden Seite per postMessage
+// (bei file:// darf das iframe nicht direkt auf window.top zugreifen)
+function historyBack(){
+    if(window.top !== window.self){ window.parent.postMessage({ mesh: 'close' }, '*'); }
+    else { window.location.href = '../../timetable.html'; }
+}
+
+if(window.top !== window.self){
+    document.addEventListener('click', function(e){
+        if(e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        var a = e.target.closest && e.target.closest('a[data-event]');
+        if(!a) return;
+        e.preventDefault();
+        window.parent.postMessage({ mesh: 'open', event: a.getAttribute('data-event'), lang: a.getAttribute('data-lang') }, '*');
+    });
+}
+</script>
+</body>
+</html>

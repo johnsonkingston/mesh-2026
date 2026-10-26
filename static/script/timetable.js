@@ -1,0 +1,386 @@
+function filterTimetable(format, el) {
+  if ($("#filterAll").attr("data-all") == "1") {
+    $("#filterAll").attr("data-all", "0");
+    $(".EventTimetable").hide();
+    $(".EventTimetableA").hide();
+    $(".active").removeClass("active");
+  }
+  if (el.attr("data-visible") == "1") {
+    $("." + format).show();
+    $(".A" + format).show();
+    el.addClass("active");
+    el.attr("data-visible", 0);
+  } else {
+    $("." + format).hide();
+    $(".A" + format).hide();
+    el.removeClass("active");
+    el.attr("data-visible", 1);
+  }
+  $(".timetableSpalte").addClass("timetableSpalteFilter");
+
+  runShrink();
+}
+
+function filterTimetableAll() {
+  if ($("#filterAll").attr("data-all") == "0") {
+    $("#filterAll").attr("data-all", "1");
+    $("#filterAll").addClass("active");
+    $(".EventTimetable").show();
+    $(".EventTimetableA").show();
+    $(".filterpill").removeClass("active");
+    $(".filterpill").attr("data-visible", 1);
+    $(".timetableSpalteFilter").removeClass("timetableSpalteFilter");
+  }
+  runShrink();
+}
+
+//Day slider
+function setActiveDayNav(index) {
+  $(".dayNavItem").removeClass("active");
+  $('.dayNavItem[data-day-index="' + index + '"]').addClass("active");
+  syncTrackHeight(index);
+}
+
+// Mobile: the page is the vertical scroll container, so the slider track
+// takes the height of the active day instead of the tallest one.
+function syncTrackHeight(index) {
+  var track = $(".timetableSliderTrack");
+  if (!track.length) return;
+  if ($(window).width() >= $(window).outerHeight()) {
+    track.css("height", "");
+    return;
+  }
+  if (index === undefined) {
+    var active = $(".dayNavItem.active").attr("data-day-index");
+    index = active !== undefined ? parseInt(active) : 0;
+  }
+  var slide = track.find('.timetableDaySlide[data-day-index="' + index + '"]');
+  if (slide.length) track.css("height", slide.outerHeight() + "px");
+}
+
+function slideDay(direction) {
+  var track = $(".timetableSliderTrack");
+  if (!track.length) return;
+  var slides = track.find(".timetableDaySlide");
+  var slideWidth = track.width();
+  var current = Math.round(track.scrollLeft() / slideWidth);
+  var next = Math.min(Math.max(current + direction, 0), slides.length - 1);
+  track.animate({ scrollLeft: next * slideWidth }, 300);
+  setActiveDayNav(next);
+}
+
+function goToDay(index) {
+  var track = $(".timetableSliderTrack");
+  if (!track.length) return;
+  var slideWidth = track.width();
+  track.animate({ scrollLeft: index * slideWidth }, 300);
+  setActiveDayNav(index);
+}
+
+//Timeline
+function setTimeline() {
+  let d = new Date();
+  let month = d.getMonth();
+  let day = d.getDate();
+  let hour = d.getHours();
+  let minutes = d.getMinutes();
+
+  day++;
+  day++;
+  let emHeight = $(".timetableHourline").height() / originalHeight;
+
+  if (month == 9 && day > 13 && day < 19) {
+    console.log(month);
+    console.log(day);
+    $("#time").show();
+    let topSet =
+      $("#timetableHourline" + day + "-" + hour).offset().top -
+      $(".timetableSpalteWrap").first().offset().top;
+    topSet = topSet / emHeight;
+    console.log($("#time"));
+    //$('#time').css('top',topSet+'em');
+  }
+}
+
+//Layout Operations
+let eventsJS = [];
+let firstInRow = [];
+let EarliestEvent = {};
+let LastestEvent = {};
+var shrinkHeight = 1.3;
+var originalHeight = hourHeight;
+var reductionHeight = originalHeight - shrinkHeight;
+var rowWidth = 15.1;
+if ($(window).width() < $(window).outerHeight()) {
+  var rowWidth = 39;
+}
+
+function getFirstByColumn() {
+  firstInRow.length = 0;
+
+  var columnBefore = "";
+  var dayBefore = "";
+  for (const property in eventsJS) {
+    if (columnBefore !== eventsJS[property].column) {
+      var column = eventsJS[property].column;
+      var id = eventsJS[property].id;
+      var day = eventsJS[property].day;
+      var hour = eventsJS[property].hour;
+      var firstInRowElement = true;
+      firstInRow.push({ column, id, day, hour, firstInRowElement });
+    } else if (
+      columnBefore !== eventsJS[property].column ||
+      dayBefore !== eventsJS[property].day
+    ) {
+      var column = eventsJS[property].column;
+      var id = eventsJS[property].id;
+      var day = eventsJS[property].day;
+      var hour = eventsJS[property].hour;
+      var firstInRowElement = false;
+      firstInRow.push({ column, id, day, hour, firstInRowElement });
+    }
+
+    columnBefore = eventsJS[property].column;
+    dayBefore = eventsJS[property].day;
+  }
+  //console.log(firstInRow);
+}
+
+function getEarliestEvent() {
+  EarliestEvent = {
+    14: { hour: 100 },
+    15: { hour: 100 },
+    16: { hour: 100 },
+    17: { hour: 100 },
+    18: { hour: 100 },
+  };
+
+  for (const property in eventsJS) {
+    var day = eventsJS[property].day;
+
+    if (EarliestEvent[day].hour > eventsJS[property].hour) {
+      var hour = eventsJS[property].hour;
+      EarliestEvent[day].hour = parseInt(hour);
+    }
+  }
+  //console.log(EarliestEvent);
+}
+
+function getLastestEvent() {
+  LastestEvent = {
+    14: { hourEnd: 0 },
+    15: { hourEnd: 0 },
+    16: { hourEnd: 0 },
+    17: { hourEnd: 0 },
+    18: { hourEnd: 0 },
+  };
+
+  for (const property in eventsJS) {
+    var day = eventsJS[property].day;
+
+    if (LastestEvent[day].hourEnd < eventsJS[property].hourEnd) {
+      var hourEnd = eventsJS[property].hourEnd;
+      LastestEvent[day].hourEnd = parseInt(hourEnd);
+    }
+  }
+  //console.log(LastestEvent);
+}
+
+function shrink() {
+  var days = [14, 15, 16, 17, 18];
+  var totalShrink = {
+    14: 0,
+    15: 0,
+    16: 0,
+    17: 0,
+    18: 0,
+    19: 0,
+  };
+  $(".timetableHourline").height(originalHeight + "em");
+
+  var emHeight = $(".timetableHourline").height() / originalHeight;
+  //console.log('emHeight: '+emHeight);
+
+  for (const keyDay in days) {
+    var day = days[keyDay];
+
+    var i = 9;
+    while (i < EarliestEvent[day].hour) {
+      $("#timetableHourline" + day + "-" + i).height(shrinkHeight + "em");
+      totalShrink[day] += reductionHeight;
+      i++;
+    }
+    if (EarliestEvent[day].hour == 100) {
+      totalShrink[day] = 5 * reductionHeight;
+      totalShrink[day] = 0;
+    }
+
+    var i = 27;
+    if (LastestEvent[day].hour !== 0) {
+      while (i >= LastestEvent[day].hourEnd) {
+        $("#timetableHourline" + day + "-" + i).height(shrinkHeight + "em");
+        totalShrink[day + 1] += reductionHeight;
+        i--;
+      }
+    }
+
+    for (const key in firstInRow) {
+      //console.log('#timetableHourline'+firstInRow[key].day+'-'+Math.floor(firstInRow[key].hour));
+      //console.log(firstInRow[key].id);
+
+      var topMargin =
+        $(
+          "#timetableHourline" +
+            firstInRow[key].day +
+            "-" +
+            Math.floor(firstInRow[key].hour),
+        ).offset().top - $(".timetableSpalteWrap").first().offset().top;
+      topMargin = topMargin / emHeight;
+
+      $("#Event-" + firstInRow[key].id).attr("data-topedit", topMargin);
+      $(
+        ".timetableSpalte" +
+          $("#Event-" + firstInRow[key].id).attr("data-column"),
+      ).width(rowWidth + "vw");
+    }
+  }
+
+  $(".EventTimetableA").each(function (index) {
+    var day = $(this).attr("data-day");
+    var hour = $(this).attr("data-hour");
+    var topMargin =
+      $("#timetableHourline" + day + "-" + Math.floor(hour)).offset().top -
+      $(".timetableSpalteWrap").first().offset().top;
+    topMargin = topMargin / emHeight;
+    $(this).attr("data-topedit", topMargin);
+    $(this).css("top", $(this).attr("data-topedit") + "em");
+  });
+
+  $(".timetableDaySlide").each(function () {
+    var slideHeight = $(this).find(".timetableHourlineWrap").height();
+    $(this).find(".timetableSpalte").height(slideHeight);
+  });
+
+  syncHourlineWidth();
+  syncTrackHeight();
+}
+
+// Widens each day's hour-line grid to match the full scrollable width of
+// its event columns, so the grid lines run under every column and the
+// sticky hour labels (CSS: position:sticky) stay pinned to the left edge
+// while scrolling horizontally through a day.
+function syncHourlineWidth() {
+  var isMobile = $(window).width() < $(window).outerHeight();
+  $(".timetableDaySlide").each(function () {
+    var $slide = $(this);
+    var $hourlineWrap = $slide.find(".timetableHourlineWrap");
+    if (!isMobile) {
+      $hourlineWrap.css("width", "");
+      return;
+    }
+    var contentWidth = 0;
+    $slide.find(".timetableSpalte").each(function () {
+      contentWidth += $(this).outerWidth(true);
+    });
+    contentWidth = Math.max(contentWidth, $slide.width());
+    $hourlineWrap.css("width", contentWidth + "px");
+  });
+}
+
+function getElements() {
+  eventsJS.length = 0;
+  $(".EventTimetableA").each(function (index) {
+    $(this).css("top", $(this).attr("data-top"));
+    $(this).attr("data-topedit", $(this).attr("data-top"));
+
+    $(".timetableSpalte").css("width", "0");
+
+    if ($(this).children(".EventTimetable").is(":visible")) {
+      var day = $(this).attr("data-day");
+      var hour = $(this).attr("data-hour");
+      var column = $(this).attr("data-column");
+      var id = $(this).attr("data-id");
+      var hourEnd = $(this).attr("data-end");
+      eventsJS.push({ day, hour, hourEnd, column, id });
+    }
+  });
+}
+
+function runShrink() {
+  getElements();
+  getFirstByColumn();
+  getEarliestEvent();
+  getLastestEvent();
+  shrink();
+  //setTimeline();
+}
+
+$(document).ready(function () {
+  runShrink();
+
+  if (typeof initialDayIndex !== "undefined" && initialDayIndex > 0) {
+    var track = $(".timetableSliderTrack");
+    var slideWidth = track.width();
+    track.scrollLeft(initialDayIndex * slideWidth);
+    setActiveDayNav(initialDayIndex);
+  }
+
+  $(".timetableSliderTrack").on("scroll", function () {
+    var track = $(this);
+    var slideWidth = track.width();
+    if (!slideWidth) return;
+    var current = Math.round(track.scrollLeft() / slideWidth);
+    setActiveDayNav(current);
+  });
+
+  if (format !== "none") {
+    filterTimetable(format, $("#filter-" + format));
+  }
+
+  $("div").each(function (index) {
+    $(this).removeAttr("href");
+  });
+
+  //Hover fix mobile
+  if ($(window).width() < $(window).outerHeight()) {
+    rowWidth = 39;
+    $(".timetableSpalte a").each(function (index) {
+      $(this).on("click", function (event) {
+        event.preventDefault();
+        if ($(this).hasClass("clicked")) {
+          var urlLink = $(this).attr("href");
+          if (urlLink.substr(0, 4) !== "http") {
+            urlLink = baseURL + $(this).attr("href");
+          }
+          location.href = urlLink;
+        } else {
+          $(".clicked").removeClass("clicked");
+          if ($(this).parent(".timetableSpalte").length == 1) {
+            $(this).addClass("clicked");
+          } else {
+            $(this).parent("p").siblings().children("a").addClass("clicked");
+            $(this).addClass("clicked");
+          }
+        }
+      });
+    });
+    $(".EventTimetable").each(function (index) {
+      if ($(this).children(".EventTimetableContent").length == 1) {
+        $(this).on("click", function (event) {
+          $(".clicked").removeClass("clicked");
+          $(this)
+            .children(".EventTimetableContent")
+            .children("p")
+            .children("a")
+            .addClass("clicked");
+          $(this)
+            .children(".EventTimetableContent")
+            .children("p")
+            .children("span")
+            .children("a")
+            .addClass("clicked");
+        });
+      }
+    });
+  }
+});
